@@ -1,8 +1,6 @@
 {
   "git.ignoreLimitWarning": true,
-  "editor.rulers": [
-    88
-  ],
+  "editor.rulers": [88],
   "editor.formatOnSave": true,
   "python.formatting.provider": "black",
   "files.exclude": {
@@ -20,9 +18,7 @@
     "--extend-ignore=E503",
     "--max-line-length=88"
   ],
-  "python.testing.pytestArgs": [
-    "."
-  ],
+  "python.testing.pytestArgs": ["."],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "editor.formatOnPaste": true,
@@ -35,5 +31,9 @@
     "--no-pretty",
     "--strict",
     "--disable-error-code=type-abstract"
+  ],
+  "ansible.python.interpreterPath": "/usr/bin/python3",
+  "cSpell.words": [
+    "clickhouse"
   ]
 }

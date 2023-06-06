@@ -1,0 +1,342 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: clickhouse
+  name: clickhouse
+spec:
+  ports:
+    - name: "8123"
+      port: 8123
+      targetPort: 8123
+    - name: "9000"
+      port: 9000
+      targetPort: 9000
+  selector:
+    io.kompose.service: clickhouse
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.volume.type: configMap
+
+  labels:
+    io.kompose.service: clickhouse-shadow
+  name: clickhouse-shadow
+spec:
+  ports:
+    - name: "8123"
+      port: 8123
+      targetPort: 8123
+    - name: "9000"
+      port: 9000
+      targetPort: 9000
+  selector:
+    io.kompose.service: clickhouse-shadow
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: server
+  name: server
+spec:
+  ports:
+    - name: "8000"
+      port: 8000
+      targetPort: 8000
+  selector:
+    io.kompose.service: server
+status:
+  loadBalancer: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: clickhouse
+  name: clickhouse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: clickhouse
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.network/db-chroma-net: "true"
+        io.kompose.service: clickhouse
+    spec:
+      containers:
+        - env:
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "yes"
+            - name: CLICKHOUSE_HTTP_PORT
+              value: "8123"
+            - name: CLICKHOUSE_TCP_PORT
+              value: "9000"
+          image: clickhouse/clickhouse-server:22.9-alpine
+          name: clickhouse
+          ports:
+            - containerPort: 8123
+            - containerPort: 9000
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/lib/clickhouse
+              name: clickhouse-data
+            - mountPath: /var/log/clickhouse-server
+              name: clickhouse-logs
+            - mountPath: /backups
+              name: clickhouse-backups
+      restartPolicy: Always
+      volumes:
+        - name: clickhouse-data
+          persistentVolumeClaim:
+            claimName: clickhouse-data
+        - name: clickhouse-logs
+          persistentVolumeClaim:
+            claimName: clickhouse-logs
+        - name: clickhouse-backups
+          persistentVolumeClaim:
+            claimName: clickhouse-backups
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: clickhouse-data
+  name: clickhouse-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: clickhouse-logs
+  name: clickhouse-logs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: clickhouse-backups
+  name: clickhouse-backups
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-chroma-net
+spec:
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              io.kompose.network/db-chroma-net: "true"
+  podSelector:
+    matchLabels:
+      io.kompose.network/db-chroma-net: "true"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.volume.type: configMap
+
+  labels:
+    io.kompose.service: clickhouse-shadow
+  name: clickhouse-shadow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: clickhouse-shadow
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.volume.type: configMap
+
+      labels:
+        io.kompose.network/db-chroma-net: "true"
+        io.kompose.service: clickhouse-shadow
+    spec:
+      containers:
+        - env:
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "yes"
+            - name: CLICKHOUSE_HTTP_PORT
+              value: "8123"
+            - name: CLICKHOUSE_TCP_PORT
+              value: "9000"
+          image: clickhouse/clickhouse-server:22.9-alpine
+          name: clickhouse-shadow
+          ports:
+            - containerPort: 8123
+            - containerPort: 9000
+          resources: {}
+          volumeMounts:
+            - mountPath: /etc/clickhouse-server/config.d/backup_disk.xml
+              name: clickhouse-shadow-cm0
+              subPath: backup_disk.xml
+            - mountPath: /etc/clickhouse-server/users.d/chroma.xml
+              name: clickhouse-shadow-cm1
+              subPath: chroma.xml
+      restartPolicy: Always
+      volumes:
+        - configMap:
+            items:
+              - key: backup_disk.xml
+                path: backup_disk.xml
+            name: clickhouse-shadow-cm0
+          name: clickhouse-shadow-cm0
+        - configMap:
+            items:
+              - key: chroma_users.xml
+                path: chroma.xml
+            name: clickhouse-shadow-cm1
+          name: clickhouse-shadow-cm1
+status: {}
+
+---
+apiVersion: v1
+data:
+  backup_disk.xml: |
+    <clickhouse>
+        <storage_configuration>
+            <disks>
+                <backups>
+                    <type>local</type>
+                    <path>/etc/clickhouse-server/</path>
+                </backups>
+            </disks>
+        </storage_configuration>
+        <backups>
+            <allowed_disk>backups</allowed_disk>
+            <allowed_path>/etc/clickhouse-server/</allowed_path>
+        </backups>
+    </clickhouse>
+kind: ConfigMap
+metadata:
+  annotations:
+    use-subpath: "true"
+
+  labels:
+    io.kompose.service: clickhouse-shadow
+  name: clickhouse-shadow-cm0
+
+---
+apiVersion: v1
+data:
+  chroma_users.xml: |
+    <clickhouse>
+        <profiles>
+          <default>
+                <allow_experimental_lightweight_delete>1</allow_experimental_lightweight_delete>
+                <mutations_sync>1</mutations_sync>
+            </default>
+        </profiles>
+    </clickhouse>
+kind: ConfigMap
+metadata:
+  annotations:
+    use-subpath: "true"
+
+  labels:
+    io.kompose.service: clickhouse-shadow
+  name: clickhouse-shadow-cm1
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    io.kompose.service: server
+  name: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        io.kompose.network/db-chroma-net: "true"
+        io.kompose.service: server
+    spec:
+      containers:
+        - env:
+            - name: CHROMA_DB_IMPL
+              value: clickhouse
+            - name: CLICKHOUSE_HOST
+              value: clickhouse
+            - name: CLICKHOUSE_PORT
+              value: "8123"
+          image: ghcr.io/chroma-core/chroma:0.3.26
+          name: server
+          ports:
+            - containerPort: 8000
+          resources: {}
+          volumeMounts:
+            - mountPath: /chroma/.chroma/index
+              name: index-data
+      restartPolicy: Always
+      volumes:
+        - name: index-data
+          persistentVolumeClaim:
+            claimName: index-data
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    io.kompose.service: index-data
+  name: index-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
