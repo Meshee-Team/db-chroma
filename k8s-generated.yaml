@@ -17,30 +17,6 @@ spec:
     io.kompose.service: clickhouse
 status:
   loadBalancer: {}
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  annotations:
-    kompose.volume.type: configMap
-
-  labels:
-    io.kompose.service: clickhouse-shadow
-  name: clickhouse-shadow
-spec:
-  ports:
-    - name: "8123"
-      port: 8123
-      targetPort: 8123
-    - name: "9000"
-      port: 9000
-      targetPort: 9000
-  selector:
-    io.kompose.service: clickhouse-shadow
-status:
-  loadBalancer: {}
-
 ---
 apiVersion: v1
 kind: Service
@@ -93,6 +69,12 @@ spec:
             - containerPort: 9000
           resources: {}
           volumeMounts:
+            - mountPath: /etc/clickhouse-server/config.d/backup_disk.xml
+              name: clickhouse-config-file-cm0
+              subPath: backup_disk.xml
+            - mountPath: /etc/clickhouse-server/users.d/chroma.xml
+              name: clickhouse-config-file-cm1
+              subPath: chroma.xml
             - mountPath: /var/lib/clickhouse
               name: clickhouse-data
             - mountPath: /var/log/clickhouse-server
@@ -101,6 +83,18 @@ spec:
               name: clickhouse-backups
       restartPolicy: Always
       volumes:
+        - configMap:
+            items:
+              - key: backup_disk.xml
+                path: backup_disk.xml
+            name: clickhouse-config-file-cm0
+          name: clickhouse-config-file-cm0
+        - configMap:
+            items:
+              - key: chroma_users.xml
+                path: chroma.xml
+            name: clickhouse-config-file-cm1
+          name: clickhouse-config-file-cm1
         - name: clickhouse-data
           persistentVolumeClaim:
             claimName: clickhouse-data
@@ -173,69 +167,6 @@ spec:
       io.kompose.network/db-chroma-net: "true"
 
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  annotations:
-    kompose.volume.type: configMap
-
-  labels:
-    io.kompose.service: clickhouse-shadow
-  name: clickhouse-shadow
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      io.kompose.service: clickhouse-shadow
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      annotations:
-        kompose.volume.type: configMap
-
-      labels:
-        io.kompose.network/db-chroma-net: "true"
-        io.kompose.service: clickhouse-shadow
-    spec:
-      containers:
-        - env:
-            - name: ALLOW_EMPTY_PASSWORD
-              value: "yes"
-            - name: CLICKHOUSE_HTTP_PORT
-              value: "8123"
-            - name: CLICKHOUSE_TCP_PORT
-              value: "9000"
-          image: clickhouse/clickhouse-server:22.9-alpine
-          name: clickhouse-shadow
-          ports:
-            - containerPort: 8123
-            - containerPort: 9000
-          resources: {}
-          volumeMounts:
-            - mountPath: /etc/clickhouse-server/config.d/backup_disk.xml
-              name: clickhouse-shadow-cm0
-              subPath: backup_disk.xml
-            - mountPath: /etc/clickhouse-server/users.d/chroma.xml
-              name: clickhouse-shadow-cm1
-              subPath: chroma.xml
-      restartPolicy: Always
-      volumes:
-        - configMap:
-            items:
-              - key: backup_disk.xml
-                path: backup_disk.xml
-            name: clickhouse-shadow-cm0
-          name: clickhouse-shadow-cm0
-        - configMap:
-            items:
-              - key: chroma_users.xml
-                path: chroma.xml
-            name: clickhouse-shadow-cm1
-          name: clickhouse-shadow-cm1
-status: {}
-
----
 apiVersion: v1
 data:
   backup_disk.xml: |
@@ -259,8 +190,8 @@ metadata:
     use-subpath: "true"
 
   labels:
-    io.kompose.service: clickhouse-shadow
-  name: clickhouse-shadow-cm0
+    io.kompose.service: clickhouse-config-file
+  name: clickhouse-config-file-cm0
 
 ---
 apiVersion: v1
@@ -280,8 +211,8 @@ metadata:
     use-subpath: "true"
 
   labels:
-    io.kompose.service: clickhouse-shadow
-  name: clickhouse-shadow-cm1
+    io.kompose.service: clickhouse-config-file
+  name: clickhouse-config-file-cm1
 
 ---
 apiVersion: apps/v1
