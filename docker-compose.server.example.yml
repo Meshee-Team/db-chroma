@@ -4,7 +4,7 @@ networks:
   net:
     driver: bridge
 services:
-  server:
+  chroma-server:
     image: ghcr.io/chroma-core/chroma:0.3.26
     volumes:
       - index_data:/chroma/.chroma/index

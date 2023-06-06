@@ -22,15 +22,15 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    io.kompose.service: server
-  name: server
+    io.kompose.service: chroma-server
+  name: chroma-server
 spec:
   ports:
     - name: "8000"
       port: 8000
       targetPort: 8000
   selector:
-    io.kompose.service: server
+    io.kompose.service: chroma-server
 status:
   loadBalancer: {}
 
@@ -219,20 +219,20 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    io.kompose.service: server
-  name: server
+    io.kompose.service: chroma-server
+  name: chroma-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: server
+      io.kompose.service: chroma-server
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         io.kompose.network/db-chroma-net: "true"
-        io.kompose.service: server
+        io.kompose.service: chroma-server
     spec:
       containers:
         - env:
@@ -243,18 +243,18 @@ spec:
             - name: CLICKHOUSE_PORT
               value: "8123"
           image: ghcr.io/chroma-core/chroma:0.3.26
-          name: server
+          name: chroma-server
           ports:
             - containerPort: 8000
           resources: {}
           volumeMounts:
             - mountPath: /chroma/.chroma/index
-              name: index-data
+              name: chroma-server-index-data
       restartPolicy: Always
       volumes:
-        - name: index-data
+        - name: chroma-server-index-data
           persistentVolumeClaim:
-            claimName: index-data
+            claimName: chroma-server-index-data
 status: {}
 
 ---
@@ -262,8 +262,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
-    io.kompose.service: index-data
-  name: index-data
+    io.kompose.service: chroma-server-index-data
+  name: chroma-server-index-data
 spec:
   accessModes:
     - ReadWriteOnce
