@@ -31,24 +31,10 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
       - clickhouse_backups:/backups
-    networks:
-      - net
-  clickhouse-config-file:
-    image: clickhouse/clickhouse-server:22.9-alpine
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - CLICKHOUSE_TCP_PORT=9000
-      - CLICKHOUSE_HTTP_PORT=8123
-    ports:
-      - "8123:8123"
-      - "9000:9000"
-    volumes:
       - ./config/backup_disk.xml:/etc/clickhouse-server/config.d/backup_disk.xml
       - ./config/chroma_users.xml:/etc/clickhouse-server/users.d/chroma.xml
     networks:
       - net
-    labels:
-      - "kompose.volume.type=configMap"
 volumes:
   clickhouse_data:
     driver: local
